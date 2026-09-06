@@ -1,6 +1,7 @@
 import React,{useEffect,useRef,useState} from 'react'
 import AppV3 from './AppV3.jsx'
 import './spatial-passthrough.css'
+import './native-ar-restore.css'
 
 function selectedPreview(){
   const stage=document.querySelector('.stageV2')
@@ -90,25 +91,8 @@ function SpatialOverlay({item,onClose}){
 }
 
 export default function SpatialPassthrough(){
-  const [available,setAvailable]=useState(null),[live,setLive]=useState(null),[arError,setArError]=useState('')
+  const [available,setAvailable]=useState(null),[live,setLive]=useState(null)
   useEffect(()=>{const check=()=>setAvailable(selectedPreview());check();const o=new MutationObserver(check);o.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['src','class']});const id=setInterval(check,700);return()=>{o.disconnect();clearInterval(id)}},[])
-  async function open(){
-    setArError('')
-    const item=selectedPreview();if(!item){setArError('Load an object first, then open Real World.');return}
-    if(item.type==='model'){
-      try{
-        await item.node.updateComplete
-        if(typeof item.node.activateAR==='function'){await item.node.activateAR();return}
-        const btn=item.node.querySelector('button[slot="ar-button"]');if(btn){btn.click();return}
-        throw new Error('AR is not available for this model/browser.')
-      }catch(e){
-        const btn=item.node.querySelector('button[slot="ar-button"]')
-        if(btn){btn.click();return}
-        setArError(e?.message||'Could not start real-world AR.')
-      }
-      return
-    }
-    setLive(item)
-  }
-  return <><AppV3/>{available&&<button className="realWorldFab" onClick={open}>◎ Real World</button>}{arError&&<div className="realWorldError">{arError}</div>}{live&&<SpatialOverlay item={live} onClose={()=>setLive(null)}/>}</>
+  function openOverlay(){const item=selectedPreview();if(!item||item.type==='model')return;setLive(item)}
+  return <><AppV3/>{available&&available.type!=='model'&&<button className="realWorldFab" onClick={openOverlay}>◎ Real World</button>}{available?.type==='model'&&<div className="nativeArHint">3D MODEL READY · Tap “View in AR” below to open the same iPhone real-world placement.</div>}{live&&<SpatialOverlay item={live} onClose={()=>setLive(null)}/>}</>
 }
