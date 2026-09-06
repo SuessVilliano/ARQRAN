@@ -1,5 +1,4 @@
 import React,{useEffect,useRef,useState} from 'react'
-import '@google/model-viewer'
 import AppV3 from './AppV3.jsx'
 import './spatial-passthrough.css'
 import './native-ar-restore.css'
@@ -9,16 +8,26 @@ function selectedPreview(){
   if(!stage)return null
   const model=stage.querySelector('model-viewer')
   if(model?.getAttribute('src'))return{type:'model',src:model.getAttribute('src'),node:model}
+
+  // Do not mistake AppV3's empty-state label (for example “Main 3D object”)
+  // for a real text/image object. This was the source of the fake placeholder
+  // appearing in camera passthrough before/after a GLB upload.
+  const typeLabel=(stage.querySelector('.stageHeader span')?.textContent||'').toLowerCase()
+  if(typeLabel.includes('3d model'))return null
+
   const image=stage.querySelector('img.spatialMedia')
   if(image?.src)return{type:'image',src:image.currentSrc||image.src}
+  if(typeLabel.includes('image'))return null
   const video=stage.querySelector('video.spatialMedia')
   if(video?.src)return{type:'video',src:video.currentSrc||video.src}
+  if(typeLabel.includes('video'))return null
   const web=stage.querySelector('.webPanel iframe')
   if(web?.src)return{type:'web',src:web.src}
-  const text=stage.querySelector('.textPanel')
-  if(text)return{type:'text',text:text.textContent,color:getComputedStyle(text).color}
   const audio=stage.querySelector('.audioPanel audio')
   if(audio?.src)return{type:'audio',src:audio.currentSrc||audio.src,name:stage.querySelector('.audioPanel b')?.textContent||'Audio'}
+  if(typeLabel.includes('audio'))return null
+  const text=stage.querySelector('.textPanel')
+  if(text&&typeLabel.includes('text'))return{type:'text',text:text.textContent,color:getComputedStyle(text).color}
   return null
 }
 
@@ -91,38 +100,39 @@ function SpatialOverlay({item,onClose}){
   </div>
 }
 
-function NativeModelAR({item}){
-  const ref=useRef(null)
-  const [ready,setReady]=useState(false),[error,setError]=useState('')
-  useEffect(()=>{setReady(false);setError('')},[item?.src])
-  if(!item?.src)return null
-  async function launch(){
-    setError('')
-    try{
-      const viewer=ref.current
-      if(!viewer)throw new Error('AR viewer is still loading.')
-      if(!ready)throw new Error('Model is still preparing for AR. Wait one second and tap again.')
-      await viewer.activateAR()
-    }catch(e){
-      try{
-        const nativeButton=item.node?.querySelector('button[slot="ar-button"]')
-        if(nativeButton){nativeButton.click();return}
-      }catch{}
-      setError(e?.message||'Could not start iPhone AR.')
-    }
-  }
-  return <>
-    <model-viewer key={item.src} ref={ref} class="nativeArIsolated" src={item.src} ar ar-modes="webxr scene-viewer quick-look" ar-scale="auto" camera-controls touch-action="pan-y" shadow-intensity="1" exposure="1" onLoad={()=>setReady(true)}>
-      <button slot="ar-button">View in AR</button>
-    </model-viewer>
-    <button className="realWorldFab" onClick={launch} disabled={!ready}>{ready?'◎ View loaded model in AR':'Preparing AR…'}</button>
-    {error&&<div className="realWorldError">{error}</div>}
-  </>
-}
-
 export default function SpatialPassthrough(){
-  const [available,setAvailable]=useState(null),[live,setLive]=useState(null)
-  useEffect(()=>{const check=()=>setAvailable(selectedPreview());check();const o=new MutationObserver(check);o.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['src','class']});const id=setInterval(check,500);return()=>{o.disconnect();clearInterval(id)}},[])
-  function openOverlay(){const item=selectedPreview();if(!item||item.type==='model')return;setLive(item)}
-  return <><AppV3/>{available?.type==='model'?<NativeModelAR item={available}/>:available?<button className="realWorldFab" onClick={openOverlay}>◎ Real World</button>:null}{live&&<SpatialOverlay item={live} onClose={()=>setLive(null)}/>}</>
+  const [available,setAvailable]=useState(null),[live,setLive]=useState(null),[arError,setArError]=useState('')
+  useEffect(()=>{const check=()=>setAvailable(selectedPreview());check();const o=new MutationObserver(check);o.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['src','class']});const id=setInterval(check,400);return()=>{o.disconnect();clearInterval(id)}},[])
+
+  async function openRealWorld(){
+    const item=selectedPreview()
+    setArError('')
+    if(!item){setArError('Upload the selected object first.');return}
+    if(item.type==='model'){
+      // Use the exact model-viewer instance that is displaying the uploaded GLB.
+      // This matches the original working prototype instead of creating a
+      // second hidden/placeholder model-viewer for iOS Quick Look.
+      try{
+        const viewer=item.node
+        if(!viewer?.getAttribute('src'))throw new Error('The uploaded GLB is not loaded yet.')
+        await viewer.updateComplete
+        await viewer.activateAR()
+      }catch(e){
+        try{
+          const button=item.node?.querySelector('button[slot="ar-button"]')
+          if(button){button.click();return}
+        }catch{}
+        setArError(e?.message||'Could not start AR for the uploaded GLB.')
+      }
+      return
+    }
+    setLive(item)
+  }
+
+  return <>
+    <AppV3/>
+    {available&&<button className="realWorldFab" onClick={openRealWorld}>◎ Real World</button>}
+    {arError&&<div className="realWorldError">{arError}</div>}
+    {live&&<SpatialOverlay item={live} onClose={()=>setLive(null)}/>} 
+  </>
 }
