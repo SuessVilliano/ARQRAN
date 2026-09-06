@@ -3,6 +3,9 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/studio/:path*", "destination": "/index.html" },
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/signup", "destination": "/index.html" },
     { "source": "/x/:path*", "destination": "/index.html" },
     { "source": "/hunt/:path*", "destination": "/index.html" }
   ]
