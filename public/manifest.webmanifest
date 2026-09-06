@@ -9,6 +9,9 @@
   "background_color": "#05070c",
   "theme_color": "#05070c",
   "categories": ["productivity", "entertainment", "utilities"],
+  "icons": [
+    {"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ],
   "shortcuts": [
     {"name":"Create scene","short_name":"Create","url":"/?new=1"},
     {"name":"Open map","short_name":"Map","url":"/?tab=map"}
