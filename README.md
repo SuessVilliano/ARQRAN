@@ -1,43 +1,71 @@
 # ARQRAN
 
-Standalone serverless WebAR + dynamic QR platform.
+Standalone serverless spatial-content + WebAR platform.
 
-## Current working model
+## Live domain model
 
-- React/Vite creator studio with local GLB preview.
-- Browser AR through `<model-viewer>` using WebXR, Android Scene Viewer, and iOS Quick Look fallback.
-- Scene controls for scale, yaw, animation, shadow, exposure, and fixed/auto AR scale.
-- QR or GPS geofence trigger.
+- Creator/runtime app: `https://arqran.liv8.co`
+- Branded scan/redirect domain: `https://scan.liv8.co`
+- SQR API base: `https://sqr.co/api`
+
+## Current platform capabilities
+
+- React/Vite multi-object Spatial Studio.
+- Scene objects: 3D models, images, video, web panels, text, and audio.
+- Per-object X/Y/Z position, rotation, scale, color/tint, anchor type, and location rules.
+- Browser AR for GLB models through `<model-viewer>` using WebXR, Android Scene Viewer, and iOS Quick Look fallback.
+- Camera-overlay runtime for mixed-media scene objects.
+- GPS scavenger-hunt runtime with nearest-target distance, bearing/cardinal direction, FAR/WARM/HOT/FOUND thresholds, and reveal radius.
+- Stable public scene URLs at `/x/<scene-slug>` instead of encoding scene state in query parameters.
 - SQR serverless publishing through `SQR_API_KEY`, including dynamic links and branded QR creation.
-- `SQR_DOMAIN_ID` support for `scan.liv8.co` once the domain is connected in SQR.
-- Supabase-backed scene persistence, analytics, finite collectible claims, and signed asset-upload URLs.
-- Serverless endpoints under `/api` for publish, analytics, claims, saved scenes, and upload authorization.
+- `SQR_DOMAIN_ID` support for `scan.liv8.co`.
+- Supabase-backed scene persistence, analytics, finite collectible claims, and signed GLB upload URLs.
+- Vercel serverless endpoints under `/api` for publish, analytics, claims, saved scenes, and upload authorization.
 - Automated utility tests and GitHub Actions build QA.
 
 ## Architecture
 
 ```text
-Creator browser
-  -> Vercel static Vite UI
+Creator
+  -> arqran.liv8.co
+  -> Spatial Studio
   -> Vercel serverless /api/*
-       -> SQR API (dynamic branded QR)
-       -> Supabase Postgres (scenes/events/claims)
-       -> Supabase Storage (GLB assets)
+       -> SQR API (dynamic QR + scan.liv8.co)
+       -> Supabase Postgres (scenes / objects / events / claims)
+       -> Supabase Storage (GLB and future media assets)
 
-Scanner
-  -> scan.liv8.co/<slug> via SQR
-  -> HTTPS AR viewer
-  -> geofence check when configured
-  -> WebXR / Scene Viewer / Quick Look
+Participant
+  -> scan.liv8.co/<slug>
+  -> SQR redirect
+  -> arqran.liv8.co/x/<slug>
+  -> location hunt / camera / AR runtime
 ```
+
+## Spatial scene model
+
+A scene can contain up to 50 authored objects. Each object stores:
+
+- content type and source
+- position x/y/z
+- rotation x/y/z
+- scale x/y/z
+- color/tint and opacity
+- autoplay/loop/mute behavior
+- anchor type: scene, GPS, image target, QR marker, or spatial anchor
+- optional latitude/longitude
+- reveal, warm, and nearby radii
+- interaction behavior
+
+The current no-app runtime provides true native/browser AR placement for GLB models and camera-overlay rendering for mixed-media content. Exact persistent wall/room anchoring for arbitrary mixed media is the next anchor-engine layer and will use image targets / QR markers / spatial anchors rather than GPS alone.
 
 ## Setup
 
-1. Create a Supabase project and run `supabase/schema.sql`.
+1. Create or select the Supabase project and run `supabase/schema.sql`.
 2. Create a public Storage bucket named `ar-assets`.
-3. Copy `.env.example` into your Vercel project environment and provide the real values.
-4. In SQR, add `scan.liv8.co` as a custom domain, then set `SQR_DOMAIN_ID` to that SQR domain ID.
-5. Deploy this repo to Vercel. Set `VITE_PUBLIC_AR_BASE_URL` to the HTTPS ARQRAN deployment URL.
+3. Add the `.env.example` values to the Vercel project.
+4. In SQR, connect `scan.liv8.co` and put its domain ID in `SQR_DOMAIN_ID`.
+5. Set `VITE_PUBLIC_AR_BASE_URL=https://arqran.liv8.co`.
+6. Set `SQR_API_BASE_URL=https://sqr.co/api` and the server-only `SQR_API_KEY`.
 
 No SQR or Supabase secret is ever exposed through a `VITE_` variable.
 
@@ -50,14 +78,11 @@ npm run build
 npx vercel dev
 ```
 
-`npm run dev:web` runs only the Vite frontend; API routes require `vercel dev` or a Vercel deployment.
+## Anchor roadmap
 
-## Environment
+- GPS: outdoor discovery and proximity guidance.
+- QR marker: deterministic physical anchor.
+- Image target: posters, paintings, packaging, walls, signage.
+- Spatial anchor/VPS: persistent exact room/world placement where supported.
 
-See `.env.example`.
-
-The public browser variables are `VITE_PUBLIC_AR_BASE_URL`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY`. The service-role Supabase key and SQR API key are serverless-only secrets.
-
-## 8th Wall
-
-The platform does not require proprietary 8th Wall credentials for basic no-app object placement. The open-source 8th Wall stack can be introduced as an adapter for image-target tracking and richer camera effects after the core QR/location workflow is deployed and validated.
+This lets one QR begin an entire hunt while each object can still have its own physical location and reveal radius.
