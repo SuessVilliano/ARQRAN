@@ -22,27 +22,9 @@ export function validateAdd(existingCount, existingBytes, incoming=[]) {
 export function buildSceneUrl(base, scene) {
   if (!isPublicHttps(base)) throw new Error('A public HTTPS AR base URL is required before publishing.')
   const url = new URL(base)
-  url.pathname = url.pathname.replace(/\/$/,'') + '/'
-  url.searchParams.set('src', scene.src)
-  url.searchParams.set('name', scene.title || scene.name || 'AR scene')
-  url.searchParams.set('scene', scene.slug || slugify(scene.title || 'scene'))
-  url.searchParams.set('scale', String(scene.settings?.scale ?? 1))
-  url.searchParams.set('pitch', String(scene.settings?.pitch ?? 0))
-  url.searchParams.set('yaw', String(scene.settings?.yaw ?? 0))
-  url.searchParams.set('roll', String(scene.settings?.roll ?? 0))
-  url.searchParams.set('color', String(scene.settings?.color || '#ffffff'))
-  url.searchParams.set('autoplay', scene.settings?.autoplay === false ? '0' : '1')
-  url.searchParams.set('spin', scene.settings?.autoRotate ? '1' : '0')
-  url.searchParams.set('shadow', String(scene.settings?.shadow ?? 1))
-  url.searchParams.set('exposure', String(scene.settings?.exposure ?? 1))
-  url.searchParams.set('arscale', scene.settings?.arScale || 'auto')
-  if (scene.trigger?.type === 'geo') {
-    url.searchParams.set('trigger','geo')
-    url.searchParams.set('lat',String(scene.trigger.lat))
-    url.searchParams.set('lng',String(scene.trigger.lng))
-    url.searchParams.set('radius',String(scene.trigger.radius || 100))
-  }
-  if (scene.claimLimit) url.searchParams.set('claims',String(scene.claimLimit))
+  url.pathname = `/x/${slugify(scene.slug || scene.title || 'scene')}`
+  url.search = ''
+  url.hash = ''
   return url.toString()
 }
 
@@ -59,6 +41,19 @@ export function haversineMeters(a,b) {
   const dLat=rad(b.lat-a.lat), dLng=rad(b.lng-a.lng)
   const x=Math.sin(dLat/2)**2 + Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2
   return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))
+}
+
+export function bearingDegrees(a,b){
+  const rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI
+  const p1=rad(a.lat),p2=rad(b.lat),dl=rad(b.lng-a.lng)
+  const y=Math.sin(dl)*Math.cos(p2)
+  const x=Math.cos(p1)*Math.sin(p2)-Math.sin(p1)*Math.cos(p2)*Math.cos(dl)
+  return (deg(Math.atan2(y,x))+360)%360
+}
+
+export function cardinal(deg){
+  const dirs=['N','NE','E','SE','S','SW','W','NW']
+  return dirs[Math.round(((Number(deg)||0)%360)/45)%8]
 }
 
 export function withinGeofence(user,target,radius=100) {
