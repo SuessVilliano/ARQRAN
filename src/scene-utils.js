@@ -27,7 +27,10 @@ export function buildSceneUrl(base, scene) {
   url.searchParams.set('name', scene.title || scene.name || 'AR scene')
   url.searchParams.set('scene', scene.slug || slugify(scene.title || 'scene'))
   url.searchParams.set('scale', String(scene.settings?.scale ?? 1))
+  url.searchParams.set('pitch', String(scene.settings?.pitch ?? 0))
   url.searchParams.set('yaw', String(scene.settings?.yaw ?? 0))
+  url.searchParams.set('roll', String(scene.settings?.roll ?? 0))
+  url.searchParams.set('color', String(scene.settings?.color || '#ffffff'))
   url.searchParams.set('autoplay', scene.settings?.autoplay === false ? '0' : '1')
   url.searchParams.set('spin', scene.settings?.autoRotate ? '1' : '0')
   url.searchParams.set('shadow', String(scene.settings?.shadow ?? 1))
@@ -41,6 +44,13 @@ export function buildSceneUrl(base, scene) {
   }
   if (scene.claimLimit) url.searchParams.set('claims',String(scene.claimLimit))
   return url.toString()
+}
+
+export function hexToFactor(hex='#ffffff') {
+  const clean = String(hex).replace('#','').trim()
+  const normalized = clean.length === 3 ? clean.split('').map(c=>c+c).join('') : clean
+  if(!/^[0-9a-f]{6}$/i.test(normalized)) return [1,1,1,1]
+  return [0,2,4].map(i=>parseInt(normalized.slice(i,i+2),16)/255).concat(1)
 }
 
 export function haversineMeters(a,b) {
