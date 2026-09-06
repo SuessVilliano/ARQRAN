@@ -39,13 +39,40 @@ create table if not exists public.ar_claims (
 create index if not exists ar_events_scene_created_idx on public.ar_events(scene_slug,created_at desc);
 create index if not exists ar_claims_scene_idx on public.ar_claims(scene_slug);
 
+create or replace function public.claim_ar_collectible(p_scene_slug text, p_device_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_limit integer;
+  v_count integer;
+  v_existing boolean;
+begin
+  perform pg_advisory_xact_lock(hashtext(p_scene_slug));
+  select claim_limit into v_limit from ar_scenes where slug=p_scene_slug for update;
+  if not found then raise exception 'Scene not found'; end if;
+  if coalesce(v_limit,0) <= 0 then raise exception 'Claims are disabled for this scene'; end if;
+
+  select exists(select 1 from ar_claims where scene_slug=p_scene_slug and device_token=p_device_token) into v_existing;
+  select count(*) into v_count from ar_claims where scene_slug=p_scene_slug;
+
+  if v_existing then
+    return jsonb_build_object('duplicate',true,'remaining',greatest(0,v_limit-v_count));
+  end if;
+  if v_count >= v_limit then raise exception 'All collectibles have been claimed'; end if;
+
+  insert into ar_claims(scene_slug,device_token) values(p_scene_slug,p_device_token);
+  insert into ar_events(scene_slug,event_type,meta) values(p_scene_slug,'claim','{}'::jsonb);
+  return jsonb_build_object('duplicate',false,'remaining',greatest(0,v_limit-v_count-1));
+end;
+$$;
+
 alter table public.ar_scenes enable row level security;
 alter table public.ar_events enable row level security;
 alter table public.ar_claims enable row level security;
 
 -- Serverless functions use SUPABASE_SERVICE_ROLE_KEY and bypass RLS.
 -- No public table policies are intentionally created for the MVP.
-
--- Create a public storage bucket named `ar-assets` in Supabase Storage.
--- The serverless upload-url endpoint mints one-time signed upload tokens,
--- so anonymous users do not need broad write access to the bucket.
+-- Create a public Storage bucket named `ar-assets`.
