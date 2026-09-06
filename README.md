@@ -9,7 +9,7 @@ Standalone serverless WebAR + dynamic QR platform.
 - Scene controls for scale, yaw, animation, shadow, exposure, and fixed/auto AR scale.
 - QR or GPS geofence trigger.
 - SQR serverless publishing through `SQR_API_KEY`, including dynamic links and branded QR creation.
-- `SQR_DOMAIN_ID` support for `scan.elevate.co` once the domain is connected in SQR.
+- `SQR_DOMAIN_ID` support for `scan.liv8.co` once the domain is connected in SQR.
 - Supabase-backed scene persistence, analytics, finite collectible claims, and signed asset-upload URLs.
 - Serverless endpoints under `/api` for publish, analytics, claims, saved scenes, and upload authorization.
 - Automated utility tests and GitHub Actions build QA.
@@ -25,7 +25,7 @@ Creator browser
        -> Supabase Storage (GLB assets)
 
 Scanner
-  -> scan.elevate.co/<slug> via SQR
+  -> scan.liv8.co/<slug> via SQR
   -> HTTPS AR viewer
   -> geofence check when configured
   -> WebXR / Scene Viewer / Quick Look
@@ -36,7 +36,7 @@ Scanner
 1. Create a Supabase project and run `supabase/schema.sql`.
 2. Create a public Storage bucket named `ar-assets`.
 3. Copy `.env.example` into your Vercel project environment and provide the real values.
-4. In SQR, add `scan.elevate.co` as a custom domain, then set `SQR_DOMAIN_ID` to that SQR domain ID.
+4. In SQR, add `scan.liv8.co` as a custom domain, then set `SQR_DOMAIN_ID` to that SQR domain ID.
 5. Deploy this repo to Vercel. Set `VITE_PUBLIC_AR_BASE_URL` to the HTTPS ARQRAN deployment URL.
 
 No SQR or Supabase secret is ever exposed through a `VITE_` variable.
