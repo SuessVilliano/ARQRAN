@@ -43,20 +43,9 @@ Participant
 
 ## Spatial scene model
 
-A scene can contain up to 50 authored objects. Each object stores:
+A scene can contain up to 50 authored objects. Each object stores content type/source, position x/y/z, rotation x/y/z, scale x/y/z, color/tint, autoplay/loop/mute behavior, anchor type, optional latitude/longitude, reveal/warm/near radii, and interaction behavior.
 
-- content type and source
-- position x/y/z
-- rotation x/y/z
-- scale x/y/z
-- color/tint and opacity
-- autoplay/loop/mute behavior
-- anchor type: scene, GPS, image target, QR marker, or spatial anchor
-- optional latitude/longitude
-- reveal, warm, and nearby radii
-- interaction behavior
-
-The current no-app runtime provides true native/browser AR placement for GLB models and camera-overlay rendering for mixed-media content. Exact persistent wall/room anchoring for arbitrary mixed media is the next anchor-engine layer and will use image targets / QR markers / spatial anchors rather than GPS alone.
+The current no-app runtime provides native/browser AR placement for GLB models and camera-overlay rendering for mixed-media content. Exact persistent wall/room anchoring for arbitrary mixed media is the next anchor-engine layer and will use image targets / QR markers / spatial anchors rather than GPS alone.
 
 ## Setup
 
@@ -69,15 +58,6 @@ The current no-app runtime provides true native/browser AR placement for GLB mod
 
 No SQR or Supabase secret is ever exposed through a `VITE_` variable.
 
-## Local development
-
-```bash
-npm install
-npm test
-npm run build
-npx vercel dev
-```
-
 ## Anchor roadmap
 
 - GPS: outdoor discovery and proximity guidance.
@@ -85,4 +65,4 @@ npx vercel dev
 - Image target: posters, paintings, packaging, walls, signage.
 - Spatial anchor/VPS: persistent exact room/world placement where supported.
 
-This lets one QR begin an entire hunt while each object can still have its own physical location and reveal radius.
+One QR can begin an entire hunt while each object has its own physical location and reveal radius.
