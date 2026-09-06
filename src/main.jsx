@@ -1,6 +1,6 @@
 import React from 'react'
 import {createRoot} from 'react-dom/client'
-import App from './AppV3.jsx'
+import App from './SpatialPassthrough.jsx'
 import {installPlatformBridge,emitPlatformEvent} from './platform-bridge.js'
 
 installPlatformBridge()
