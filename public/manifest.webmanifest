@@ -1,0 +1,16 @@
+{
+  "name": "ARQRAN Spatial Studio",
+  "short_name": "ARQRAN",
+  "description": "Create, place, map and share spatial AR experiences.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05070c",
+  "theme_color": "#05070c",
+  "categories": ["productivity", "entertainment", "utilities"],
+  "shortcuts": [
+    {"name":"Create scene","short_name":"Create","url":"/?new=1"},
+    {"name":"Open map","short_name":"Map","url":"/?tab=map"}
+  ]
+}
