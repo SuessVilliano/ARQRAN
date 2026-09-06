@@ -39,6 +39,15 @@ export function buildQrForm({name,linkId,projectId,style='rounded'}){
 }
 
 function first(obj,keys){for(const k of keys){if(obj?.[k]!==undefined&&obj?.[k]!==null)return obj[k]}return null}
+function listish(data){if(Array.isArray(data))return data;if(Array.isArray(data?.data))return data.data;if(Array.isArray(data?.domains))return data.domains;if(Array.isArray(data?.items))return data.items;return[]}
+
+export async function listDomains(){return listish(await call('/domains',{method:'GET'}))}
+export async function findDomainId(host='scan.liv8.co'){
+  const needle=host.toLowerCase()
+  const domains=await listDomains()
+  const match=domains.find(d=>[d?.host,d?.hostname,d?.domain,d?.name,d?.url,d?.full_url].filter(Boolean).some(v=>String(v).toLowerCase().includes(needle)))
+  return match?first(match,['id','domain_id']):null
+}
 
 export async function createDynamicLink(input){
   const data=await call('/links',{method:'POST',body:buildLinkForm(input)})
