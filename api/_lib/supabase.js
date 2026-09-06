@@ -7,10 +7,11 @@ export function db(){
   return createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}})
 }
 
-async function syncAnchors(client,scene){
+async function syncAnchors(client,scene,ownerId){
   const rows=(scene.objects||[]).map(o=>({
     scene_slug:scene.slug,
     object_id:String(o.id),
+    owner_id:ownerId||null,
     anchor_type:o.anchor?.type||'scene',
     latitude:Number.isFinite(Number(o.geo?.lat))?Number(o.geo.lat):null,
     longitude:Number.isFinite(Number(o.geo?.lng))?Number(o.geo.lng):null,
@@ -26,11 +27,15 @@ async function syncAnchors(client,scene){
   if(error&&error.code!=='42P01')throw error
 }
 
-export async function upsertScene(scene, sqr={}){
+export async function upsertScene(scene,sqr={},ownerId=null){
   const client=db()
+  const {data:existing,error:existingError}=await client.from('ar_scenes').select('owner_id').eq('slug',scene.slug).maybeSingle()
+  if(existingError)throw existingError
+  if(existing?.owner_id&&ownerId&&existing.owner_id!==ownerId){const e=new Error('That scene URL is already owned by another account. Choose a different slug.');e.status=409;throw e}
   const firstModel=(scene.objects||[]).find(o=>o.type==='model'&&o.src)
   const row={
     slug:scene.slug,
+    owner_id:ownerId||existing?.owner_id||null,
     title:scene.title,
     description:scene.description||'',
     public_url:scene.publicUrl||null,
@@ -49,7 +54,7 @@ export async function upsertScene(scene, sqr={}){
   }
   const {data,error}=await client.from('ar_scenes').upsert(row,{onConflict:'slug'}).select().single()
   if(error) throw error
-  await syncAnchors(client,scene)
+  await syncAnchors(client,scene,row.owner_id)
   return data
 }
 
