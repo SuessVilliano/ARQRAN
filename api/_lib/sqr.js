@@ -1,4 +1,4 @@
-const BASE='https://sqr.co/api'
+const BASE=(process.env.SQR_API_BASE_URL||'https://sqr.co/api').replace(/\/$/,'')
 
 function key(){
   if(!process.env.SQR_API_KEY) throw new Error('SQR_API_KEY is not configured')
