@@ -9,6 +9,7 @@ export function interpretSpatialCommand(text,scene){
   if(/use (my|current) location|drop (it|this|object) here|place (it|this) here/.test(q))actions.push({type:'use-current-location'})
   const add=q.match(/add (?:a |an )?(3d model|model|image|photo|picture|video|web panel|website|browser|text|audio|music|song)/)
   if(add){const k=add[1].replace('3d ','').replace(' panel','');actions.push({type:'add-object',objectType:TYPES[k]||'text'})}
+  const url=raw.match(/https:\/\/[^\s]+/i)?.[0];if(url&&/(replace|swap|change|use).*(image|photo|video|audio|music|website|web|media|source|url)/i.test(raw))actions.push({type:'patch-selected',patch:{src:url}})
   const color=Object.keys(colorMap).find(c=>new RegExp(`\\b${c}\\b`).test(q));if(color&&/(make|change|color|tint)/.test(q))actions.push({type:'patch-selected',patch:{color:colorMap[color]}})
   if(/stand.*upright|upright/.test(q))actions.push({type:'patch-selected-nested',key:'rotation',patch:{x:0,y:0,z:0}})
   if(/rotate/.test(q)){const d=num(q,90);actions.push({type:'patch-selected-nested',key:'rotation',patch:{y:d}})}
@@ -18,6 +19,6 @@ export function interpretSpatialCommand(text,scene){
   const textMatch=raw.match(/(?:say|show text|text says?)\s+["“]?(.+?)["”]?$/i);if(textMatch)actions.push({type:'add-text',text:textMatch[1]})
   if(/save|publish|make.*qr|create.*qr/.test(q))actions.push({type:'publish'})
   if(/test.*ar|open.*ar|real world|camera/.test(q))actions.push({type:'open-ar'})
-  const message=actions.length?`I found ${actions.length} change${actions.length===1?'':'s'} to apply.`:'I can add objects, resize/rotate/recolor them, place them at your location, build hunts, and publish QR scenes. Try “add a video here and make it reveal within 25 meters.”'
+  const message=actions.length?`I found ${actions.length} change${actions.length===1?'':'s'} to apply.`:'I can add objects, replace linked media, resize/rotate/recolor them, place them at your location, build hunts, and publish QR scenes. Try “add a video here and make it reveal within 25 meters.”'
   return{message,actions}
 }
