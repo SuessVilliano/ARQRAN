@@ -31,6 +31,11 @@ function selectedPreview(){
   return null
 }
 
+function isIOSDevice(){
+  const ua=navigator.userAgent||''
+  return /iPad|iPhone|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)
+}
+
 function setReactInput(input,value){
   if(!input)return false
   const descriptor=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')
@@ -66,13 +71,15 @@ function savePlacementToEditor({pos,scale,rotation}){
 
 function SpatialOverlay({item,onClose}){
   const videoRef=useRef(null)
-  const [error,setError]=useState(''),[scale,setScale]=useState(1),[rotation,setRotation]=useState(0),[pos,setPos]=useState({x:50,y:50}),[saved,setSaved]=useState('')
+  const [error,setError]=useState(''),[scale,setScale]=useState(1),[rotation,setRotation]=useState(0),[pos,setPos]=useState({x:50,y:50}),[saved,setSaved]=useState(''),[nativeBusy,setNativeBusy]=useState(false)
   const drag=useRef(null),pinch=useRef(null)
+
   useEffect(()=>{let stream
     if(!navigator.mediaDevices?.getUserMedia){setError('Camera access is not supported in this browser.');return}
     navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false}).then(s=>{stream=s;if(videoRef.current){videoRef.current.srcObject=s;videoRef.current.play().catch(()=>{})}}).catch(e=>setError(e.message||'Camera permission is required.'))
     return()=>stream?.getTracks?.().forEach(t=>t.stop())
   },[])
+
   const start=e=>{
     if(e.touches?.length===2){const [a,b]=e.touches;pinch.current={distance:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),scale};return}
     const p=e.touches?.[0]||e;drag.current={x:p.clientX,y:p.clientY,px:pos.x,py:pos.y}
@@ -85,18 +92,33 @@ function SpatialOverlay({item,onClose}){
   }
   const end=()=>{drag.current=null;pinch.current=null}
   const save=()=>{const ok=savePlacementToEditor({pos,scale,rotation});setSaved(ok?'Placement copied into the selected object. Tap Save scene to persist it.':'Could not find the object editor. Return to Build and try again.')}
+
+  async function trySurfaceAR(){
+    if(item.type!=='model'||!item.node)return
+    setNativeBusy(true);setError('')
+    try{
+      await item.node.updateComplete
+      await item.node.activateAR()
+    }catch(e){
+      setError('Surface AR could not start. Instant AR is still active, so you can place and size the character here.')
+    }finally{setNativeBusy(false)}
+  }
+
   return <div className="spatialLive" onMouseMove={move} onMouseUp={end} onTouchMove={move} onTouchEnd={end}>
     <video ref={videoRef} className="spatialLiveCamera" playsInline muted/>
-    <div className="spatialLiveHud"><button onClick={onClose}>×</button><div><b>REAL-WORLD EDIT</b><span>Drag • pinch • rotate • save</span></div><button onClick={()=>setPos({x:50,y:50})}>Center</button></div>
-    {error?<div className="spatialLiveError">{error}</div>:<div className="spatialLiveObject" onMouseDown={start} onTouchStart={start} style={{left:`${pos.x}%`,top:`${pos.y}%`,transform:`translate(-50%,-50%) rotate(${rotation}deg) scale(${scale})`}}>
+    <div className="spatialLiveHud"><button onClick={onClose}>×</button><div><b>REAL-WORLD EDIT</b><span>{item.type==='model'?'Instant placement • drag • pinch • rotate':'Drag • pinch • rotate • save'}</span></div><button onClick={()=>setPos({x:50,y:50})}>Center</button></div>
+    {error&&<div className="spatialLiveError">{error}</div>}
+    {!error&&<div className="spatialHint">Move the character where you want it. Pinch to resize. Use Surface AR when you want floor/table anchoring.</div>}
+    <div className="spatialLiveObject" onMouseDown={start} onTouchStart={start} style={{left:`${pos.x}%`,top:`${pos.y}%`,transform:`translate(-50%,-50%) rotate(${rotation}deg) scale(${scale})`}}>
+      {item.type==='model'&&<model-viewer class="spatialLiveModel" src={item.src} camera-controls autoplay interaction-prompt="none" shadow-intensity="1" exposure="1"/>}
       {item.type==='image'&&<img src={item.src} alt="Spatial object"/>}
       {item.type==='video'&&<video src={item.src} autoPlay loop muted playsInline/>}
       {item.type==='web'&&<iframe src={item.src} title="Spatial web panel"/>}
       {item.type==='text'&&<div className="spatialLiveText" style={{color:item.color}}>{item.text}</div>}
       {item.type==='audio'&&<div className="spatialLiveAudio"><span>♫</span><b>{item.name}</b><audio src={item.src} controls autoPlay/></div>}
-    </div>}
+    </div>
     {saved&&<div className="spatialSaved">{saved}</div>}
-    <div className="spatialLiveControls"><button onClick={()=>setScale(v=>Math.max(.2,v-.2))}>−</button><span>{scale.toFixed(1)}×</span><button onClick={()=>setScale(v=>Math.min(5,v+.2))}>＋</button><button onClick={()=>setRotation(v=>v-15)}>↺</button><button onClick={()=>setRotation(v=>v+15)}>↻</button><button className="savePlacement" onClick={save}>Save Placement</button></div>
+    <div className="spatialLiveControls"><button onClick={()=>setScale(v=>Math.max(.2,v-.2))}>−</button><span>{scale.toFixed(1)}×</span><button onClick={()=>setScale(v=>Math.min(5,v+.2))}>＋</button><button onClick={()=>setRotation(v=>v-15)}>↺</button><button onClick={()=>setRotation(v=>v+15)}>↻</button>{item.type==='model'&&<button className="surfaceAR" disabled={nativeBusy} onClick={trySurfaceAR}>{nativeBusy?'Opening…':'Surface AR'}</button>}<button className="savePlacement" onClick={save}>Save Placement</button></div>
   </div>
 }
 
@@ -108,24 +130,30 @@ export default function SpatialPassthrough(){
     const item=selectedPreview()
     setArError('')
     if(!item){setArError('Upload the selected object first.');return}
+
     if(item.type==='model'){
-      // Use the exact model-viewer instance that is displaying the uploaded GLB.
-      // This matches the original working prototype instead of creating a
-      // second hidden/placeholder model-viewer for iOS Quick Look.
+      // iOS Quick Look can remain forever on “Move iPhone to start” when a
+      // surface cannot be detected (dark/featureless surfaces, a moving car,
+      // restricted motion data, etc.). Make the reliable camera compositor the
+      // default on iPhone/iPad, then keep native surface AR as an optional mode.
+      if(isIOSDevice()){
+        setLive(item)
+        return
+      }
+
+      // On supported non-iOS browsers, try native world tracking first and fall
+      // back to the camera compositor rather than leaving the user stranded.
       try{
         const viewer=item.node
         if(!viewer?.getAttribute('src'))throw new Error('The uploaded GLB is not loaded yet.')
         await viewer.updateComplete
         await viewer.activateAR()
-      }catch(e){
-        try{
-          const button=item.node?.querySelector('button[slot="ar-button"]')
-          if(button){button.click();return}
-        }catch{}
-        setArError(e?.message||'Could not start AR for the uploaded GLB.')
+      }catch{
+        setLive(item)
       }
       return
     }
+
     setLive(item)
   }
 
