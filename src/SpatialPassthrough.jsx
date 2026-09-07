@@ -61,6 +61,7 @@ function savePlacementToEditor({pos,scale,rotation}){
 
 function MediaObject({item}){
   if(!item)return null
+  if(item.type==='model'&&item.src)return <model-viewer class="desktopSpatialModel" src={item.src} camera-controls disable-zoom interaction-prompt="none" shadow-intensity="0" exposure="1"/>
   if(item.type==='image'&&item.src)return <img src={item.src} alt="Spatial object"/>
   if(item.type==='video'&&item.src)return <video src={item.src} autoPlay loop muted playsInline/>
   if(item.type==='web'&&item.src)return <iframe src={item.src} title="Spatial web panel"/>
@@ -71,23 +72,24 @@ function MediaObject({item}){
 
 function CameraCanvas({item,onClose,inline=false}){
   const videoRef=useRef(null)
-  const [error,setError]=useState(''),[scale,setScale]=useState(1),[rotation,setRotation]=useState(0),[pos,setPos]=useState({x:50,y:50}),[saved,setSaved]=useState('')
+  const initialScale=item?.type==='model'?.55:1
+  const [error,setError]=useState(''),[scale,setScale]=useState(initialScale),[rotation,setRotation]=useState(0),[pos,setPos]=useState({x:50,y:50}),[saved,setSaved]=useState('')
   const drag=useRef(null),pinch=useRef(null)
   useEffect(()=>{let stream;if(!navigator.mediaDevices?.getUserMedia){setError('Camera access is not supported in this browser.');return}
     navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false}).then(s=>{stream=s;if(videoRef.current){videoRef.current.srcObject=s;videoRef.current.play().catch(()=>{})}}).catch(e=>setError(e.message||'Camera permission is required.'))
     return()=>stream?.getTracks?.().forEach(t=>t.stop())
   },[])
   const start=e=>{if(e.touches?.length===2){const[a,b]=e.touches;pinch.current={distance:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),scale};return}const p=e.touches?.[0]||e;drag.current={x:p.clientX,y:p.clientY,px:pos.x,py:pos.y}}
-  const move=e=>{if(e.touches?.length===2&&pinch.current){const[a,b]=e.touches,d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);setScale(Math.max(.2,Math.min(5,pinch.current.scale*(d/pinch.current.distance))));return}if(!drag.current)return;const p=e.touches?.[0]||e,box=(e.currentTarget||document.body).getBoundingClientRect(),dx=(p.clientX-drag.current.x)/Math.max(box.width,1)*100,dy=(p.clientY-drag.current.y)/Math.max(box.height,1)*100;setPos({x:Math.max(5,Math.min(95,drag.current.px+dx)),y:Math.max(8,Math.min(92,drag.current.py+dy))})}
+  const move=e=>{if(e.touches?.length===2&&pinch.current){const[a,b]=e.touches,d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);setScale(Math.max(.05,Math.min(5,pinch.current.scale*(d/pinch.current.distance))));return}if(!drag.current)return;const p=e.touches?.[0]||e,box=(e.currentTarget||document.body).getBoundingClientRect(),dx=(p.clientX-drag.current.x)/Math.max(box.width,1)*100,dy=(p.clientY-drag.current.y)/Math.max(box.height,1)*100;setPos({x:Math.max(3,Math.min(97,drag.current.px+dx)),y:Math.max(5,Math.min(95,drag.current.py+dy))})}
   const end=()=>{drag.current=null;pinch.current=null}
   const save=()=>{const ok=savePlacementToEditor({pos,scale,rotation});setSaved(ok?'Placement copied into the selected object. Tap Save scene to persist it.':'Could not find the object editor.')}
-  const missing=!item||((item.type==='image'||item.type==='video'||item.type==='web'||item.type==='audio')&&!item.src)
+  const missing=!item||(['model','image','video','web','audio'].includes(item.type)&&!item.src)
   return <div className={inline?'desktopLiveCamera':'spatialLive'} onMouseMove={move} onMouseUp={end} onTouchMove={move} onTouchEnd={end}>
-    <video ref={videoRef} className="spatialLiveCamera" playsInline muted/>
+    <video ref={videoRef} className="spatialLiveCamera" playsInline muted autoPlay/>
     <div className="spatialLiveHud"><button onClick={onClose}>×</button><div><b>{inline?'LIVE CAMERA PREVIEW':'REAL-WORLD EDIT'}</b><span>Drag • resize • rotate • save</span></div><button onClick={()=>setPos({x:50,y:50})}>Center</button></div>
-    {error?<div className="spatialLiveError">{error}</div>:missing?<div className="desktopCameraHint"><b>Camera is live.</b><span>Upload or paste a source for this {item?.type||'object'} and it will appear here.</span></div>:<div className="spatialLiveObject" onMouseDown={start} onTouchStart={start} style={{left:`${pos.x}%`,top:`${pos.y}%`,transform:`translate(-50%,-50%) rotate(${rotation}deg) scale(${scale})`}}><MediaObject item={item}/></div>}
+    {error?<div className="spatialLiveError">{error}</div>:missing?<div className="desktopCameraHint"><b>Camera is live.</b><span>Upload or paste a source for this {item?.type||'object'} and it will appear here.</span></div>:<div className={`spatialLiveObject ${item?.type==='model'?'modelObject':''}`} onMouseDown={start} onTouchStart={start} style={{left:`${pos.x}%`,top:`${pos.y}%`,transform:`translate(-50%,-50%) rotate(${rotation}deg) scale(${scale})`}}><MediaObject item={item}/></div>}
     {saved&&<div className="spatialSaved">{saved}</div>}
-    <div className="spatialLiveControls"><button onClick={()=>setScale(v=>Math.max(.2,v-.2))}>−</button><span>{scale.toFixed(1)}×</span><button onClick={()=>setScale(v=>Math.min(5,v+.2))}>＋</button><button onClick={()=>setRotation(v=>v-15)}>↺</button><button onClick={()=>setRotation(v=>v+15)}>↻</button><button className="savePlacement" onClick={save}>Save Placement</button></div>
+    <div className="spatialLiveControls"><button onClick={()=>setScale(v=>Math.max(.05,v-.1))}>−</button><span>{scale.toFixed(2)}×</span><button onClick={()=>setScale(v=>Math.min(5,v+.1))}>＋</button><button onClick={()=>setRotation(v=>v-15)}>↺</button><button onClick={()=>setRotation(v=>v+15)}>↻</button><button onClick={()=>{setScale(initialScale);setRotation(0);setPos({x:50,y:50})}}>Reset</button><button className="savePlacement" onClick={save}>Save Placement</button></div>
   </div>
 }
 
@@ -99,17 +101,16 @@ export default function SpatialPassthrough(){
   async function openRealWorld(){
     const item=selectedPreview();setArError('')
     if(!item){setArError('Select an object first.');return}
+    if(!item.src&&item.type!=='text'){setArError(`Upload or paste a source for this ${item.type} first.`);return}
+    if(innerWidth>=901){setDesktopLive(true);return}
     if(item.type==='model'){
-      if(!item.src){setArError('Upload the selected GLB first.');return}
       try{const viewer=item.node;await viewer.updateComplete;await viewer.activateAR()}catch(e){try{const button=item.node?.querySelector('button[slot="ar-button"]');if(button){button.click();return}}catch{}setArError(e?.message||'Could not start AR for the uploaded GLB.')}
       return
     }
-    if(innerWidth>=901){setDesktopLive(true);return}
-    if((item.type==='image'||item.type==='video'||item.type==='web'||item.type==='audio')&&!item.src){setArError(`Upload or paste a source for this ${item.type} first.`);return}
     setLive(item)
   }
 
-  const desktopPortal=desktopLive&&stage&&available?.type!=='model'?createPortal(<CameraCanvas key={`${available?.type}:${available?.src||''}`} item={available} inline onClose={()=>setDesktopLive(false)}/>,stage):null
+  const desktopPortal=desktopLive&&stage&&available?createPortal(<CameraCanvas key={`${available?.type}:${available?.src||available?.text||''}`} item={available} inline onClose={()=>setDesktopLive(false)}/>,stage):null
 
-  return <><AppV3/>{available&&<button className="realWorldFab" onClick={openRealWorld}>{innerWidth>=901&&available.type!=='model'?'◉ Live Camera':'◎ Real World'}</button>}{arError&&<div className="realWorldError">{arError}</div>}{live&&<CameraCanvas item={live} onClose={()=>setLive(null)}/>} {desktopPortal}</>
+  return <><AppV3/>{available&&<button className="realWorldFab" onClick={openRealWorld}>{innerWidth>=901?'◉ Live Camera':'◎ Real World'}</button>}{arError&&<div className="realWorldError">{arError}</div>}{live&&<CameraCanvas item={live} onClose={()=>setLive(null)}/>} {desktopPortal}</>
 }
