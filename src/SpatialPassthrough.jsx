@@ -37,6 +37,14 @@ function selectedPreview(){
   return null
 }
 
+function editorGroups(){
+  const editor=document.querySelector('.card.editor')
+  if(!editor)return null
+  const labels=[...editor.querySelectorAll('.miniLabel')]
+  const group=name=>{const label=labels.find(x=>x.textContent.trim().toUpperCase()===name);return [...(label?.nextElementSibling?.querySelectorAll?.('input')||[])]}
+  return{position:group('POSITION'),rotation:group('ROTATION'),scale:group('SCALE')}
+}
+
 function setReactInput(input,value){
   if(!input)return false
   const descriptor=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')
@@ -47,11 +55,8 @@ function setReactInput(input,value){
 }
 
 function savePlacementToEditor({pos,scale,rotation}){
-  const editor=document.querySelector('.card.editor')
-  if(!editor)return false
-  const labels=[...editor.querySelectorAll('.miniLabel')]
-  const group=name=>{const label=labels.find(x=>x.textContent.trim().toUpperCase()===name);return label?.nextElementSibling?.querySelectorAll?.('input')||[]}
-  const position=group('POSITION'),rotate=group('ROTATION'),size=group('SCALE')
+  const groups=editorGroups();if(!groups)return false
+  const {position,rotation:rotate,scale:size}=groups
   const x=((pos.x-50)/50*2).toFixed(2),y=((50-pos.y)/50*2+1.4).toFixed(2),currentZ=position[2]?.value||'-2'
   setReactInput(position[0],x);setReactInput(position[1],y);setReactInput(position[2],currentZ)
   setReactInput(rotate[0],rotate[0]?.value||0);setReactInput(rotate[1],rotate[1]?.value||0);setReactInput(rotate[2],rotation)
@@ -59,9 +64,17 @@ function savePlacementToEditor({pos,scale,rotation}){
   return true
 }
 
+function SliderControls({onClose}){
+  const [values,setValues]=useState({position:[0,1.4,-2],rotation:[0,0,0],scale:[1,1,1]})
+  useEffect(()=>{const read=()=>{const g=editorGroups();if(!g)return;setValues({position:g.position.map((x,i)=>Number(x?.value??[0,1.4,-2][i])),rotation:g.rotation.map(x=>Number(x?.value??0)),scale:g.scale.map(x=>Number(x?.value??1))})};read();const id=setInterval(read,700);return()=>clearInterval(id)},[])
+  const change=(group,index,value)=>{const g=editorGroups();const input=g?.[group]?.[index];if(!input)return;setReactInput(input,value);setValues(v=>({...v,[group]:v[group].map((x,i)=>i===index?Number(value):x)}))}
+  const specs={position:{min:-5,max:5,step:.05},rotation:{min:-180,max:180,step:1},scale:{min:.05,max:5,step:.05}}
+  return <div className="sliderPanel"><div className="sliderHead"><b>Spatial sliders</b><button onClick={onClose}>×</button></div>{['position','rotation','scale'].map(group=><section key={group}><span>{group.toUpperCase()}</span>{['X','Y','Z'].map((axis,i)=><label key={axis}><em>{axis}</em><input type="range" {...specs[group]} value={values[group][i]??0} onChange={e=>change(group,i,e.target.value)}/><output>{Number(values[group][i]??0).toFixed(group==='rotation'?0:2)}</output></label>)}</section>)}</div>
+}
+
 function MediaObject({item}){
   if(!item)return null
-  if(item.type==='model'&&item.src)return <model-viewer className="desktopSpatialModel" src={item.src} camera-controls interaction-prompt="none" shadow-intensity="0" exposure="1" environment-image="neutral" camera-orbit="0deg 75deg auto" min-camera-orbit="auto auto 20%" max-camera-orbit="auto auto 300%"/>
+  if(item.type==='model'&&item.src)return <model-viewer className="desktopSpatialModel" src={item.src} camera-controls interaction-prompt="none" shadow-intensity="0" exposure="1" environment-image="neutral" camera-orbit="0deg 75deg auto" min-camera-orbit="auto auto 20%" max-camera-orbit="auto auto 300%" style={{background:'transparent','--poster-color':'transparent'}}/>
   if(item.type==='image'&&item.src)return <img src={item.src} alt="Spatial object"/>
   if(item.type==='video'&&item.src)return <video src={item.src} autoPlay loop muted playsInline/>
   if(item.type==='web'&&item.src)return <iframe src={item.src} title="Spatial web panel"/>
@@ -94,23 +107,37 @@ function CameraCanvas({item,onClose,inline=false}){
 }
 
 export default function SpatialPassthrough(){
-  const [available,setAvailable]=useState(null),[live,setLive]=useState(null),[desktopLive,setDesktopLive]=useState(false),[stage,setStage]=useState(null),[arError,setArError]=useState('')
-  useEffect(()=>{const check=()=>{setAvailable(selectedPreview());setStage(document.querySelector('.stageV2'))};check();const o=new MutationObserver(check);o.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['src','class']});const id=setInterval(check,400);return()=>{o.disconnect();clearInterval(id)}},[])
-  useEffect(()=>{if(innerWidth<901)setDesktopLive(false)},[available?.type])
+  const [available,setAvailable]=useState(null),[live,setLive]=useState(null),[desktopLive,setDesktopLive]=useState(false),[arError,setArError]=useState(''),[sliders,setSliders]=useState(false),[isDesktop,setIsDesktop]=useState(()=>window.innerWidth>=901)
+  useEffect(()=>{const resize=()=>setIsDesktop(window.innerWidth>=901);addEventListener('resize',resize);return()=>removeEventListener('resize',resize)},[])
+  useEffect(()=>{const check=()=>setAvailable(selectedPreview());check();const o=new MutationObserver(check);o.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['src','class']});const id=setInterval(check,400);return()=>{o.disconnect();clearInterval(id)}},[])
+  useEffect(()=>{if(!isDesktop)setDesktopLive(false)},[isDesktop,available?.type])
+
+  async function launchModelAR(item){
+    let viewer=item.node||document.querySelector('.stageV2 model-viewer')
+    if(!viewer?.getAttribute('src'))throw new Error('The uploaded GLB is not ready yet.')
+    try{await viewer.updateComplete}catch{}
+    if(typeof viewer.activateAR==='function'){await viewer.activateAR();return}
+    const button=viewer.querySelector('button[slot="ar-button"]');if(button){button.click();return}
+    throw new Error('AR is not available in this browser.')
+  }
 
   async function openRealWorld(){
     const item=selectedPreview();setArError('')
     if(!item){setArError('Select an object first.');return}
     if(!item.src&&item.type!=='text'){setArError(`Upload or paste a source for this ${item.type} first.`);return}
-    if(innerWidth>=901){setDesktopLive(true);return}
+    if(isDesktop){setDesktopLive(true);return}
     if(item.type==='model'){
-      try{const viewer=item.node;await viewer.updateComplete;await viewer.activateAR()}catch(e){try{const button=item.node?.querySelector('button[slot="ar-button"]');if(button){button.click();return}}catch{}setArError(e?.message||'Could not start AR for the uploaded GLB.')}
+      try{await launchModelAR(item)}catch(first){
+        const preview=[...document.querySelectorAll('.mobileTabs button')].find(b=>b.textContent.trim()==='Preview')
+        preview?.click()
+        setTimeout(async()=>{try{await launchModelAR(selectedPreview()||item)}catch(e){setArError('Preview is open. Tap “Place in real-world AR” inside the model if iPhone does not launch automatically.')}} ,180)
+      }
       return
     }
     setLive(item)
   }
 
-  const desktopPortal=desktopLive&&stage&&available?createPortal(<CameraCanvas key={`${available?.type}:${available?.src||available?.text||''}`} item={available} inline onClose={()=>setDesktopLive(false)}/>,stage):null
+  const desktopPortal=desktopLive&&available?createPortal(<CameraCanvas key={`${available?.type}:${available?.src||available?.text||''}`} item={available} inline onClose={()=>setDesktopLive(false)}/>,document.body):null
 
-  return <><AppV3/>{available&&<button className="realWorldFab" onClick={openRealWorld}>{innerWidth>=901?'◉ Live Camera':'◎ Real World'}</button>}{arError&&<div className="realWorldError">{arError}</div>}{live&&<CameraCanvas item={live} onClose={()=>setLive(null)}/>} {desktopPortal}</>
+  return <><AppV3/>{available&&<><button className="sliderFab" onClick={()=>setSliders(v=>!v)}>☷ Sliders</button><button className="realWorldFab" onClick={openRealWorld}>{isDesktop?'◉ Live Camera':'◎ Real World'}</button></>}{sliders&&<SliderControls onClose={()=>setSliders(false)}/>} {arError&&<div className="realWorldError">{arError}</div>}{live&&<CameraCanvas item={live} onClose={()=>setLive(null)}/>} {desktopPortal}</>
 }
