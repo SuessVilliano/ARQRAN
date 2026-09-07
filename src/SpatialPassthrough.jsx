@@ -61,7 +61,7 @@ function savePlacementToEditor({pos,scale,rotation}){
 
 function MediaObject({item}){
   if(!item)return null
-  if(item.type==='model'&&item.src)return <model-viewer class="desktopSpatialModel" src={item.src} camera-controls disable-zoom interaction-prompt="none" shadow-intensity="0" exposure="1"/>
+  if(item.type==='model'&&item.src)return <model-viewer className="desktopSpatialModel" src={item.src} camera-controls interaction-prompt="none" shadow-intensity="0" exposure="1" environment-image="neutral" camera-orbit="0deg 75deg auto" min-camera-orbit="auto auto 20%" max-camera-orbit="auto auto 300%"/>
   if(item.type==='image'&&item.src)return <img src={item.src} alt="Spatial object"/>
   if(item.type==='video'&&item.src)return <video src={item.src} autoPlay loop muted playsInline/>
   if(item.type==='web'&&item.src)return <iframe src={item.src} title="Spatial web panel"/>
